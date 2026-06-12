@@ -1,0 +1,18 @@
+# Cache files - do NOT upload these
+metadata_cache.json
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+venv/
+env/
+.venv/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
