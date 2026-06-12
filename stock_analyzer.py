@@ -1616,8 +1616,22 @@ def build_shortlists(symbols: Optional[List[str]] = None, top_n: int = 5) -> Dic
     top_n = max(1, min(int(top_n), 20))
     universe = dedupe_preserve_order(symbols or SHORTLIST_UNIVERSE)
 
-    # Prefetch all stocks data in batch!
-    prefetch_all_stocks_data(universe)
+    # Prefetch Nifty 50 index (^NSEI) along with Nifty 200 universe for efficiency
+    universe_with_index = list(universe) + ["^NSEI"]
+    prefetch_all_stocks_data(universe_with_index)
+
+    # Calculate overall market trend (Nifty 50)
+    nifty_trend = "Neutral"
+    try:
+        nifty_df = extract_ticker_df(_batch_history_df, "^NSEI")
+        if nifty_df is not None and not nifty_df.empty:
+            nifty_close = nifty_df["Close"].dropna()
+            if len(nifty_close) >= 20:
+                nifty_ma20 = nifty_close.tail(20).mean()
+                nifty_last = nifty_close.iloc[-1]
+                nifty_trend = "Bullish" if nifty_last > nifty_ma20 else "Bearish"
+    except Exception as e:
+        logger.warning(f"Error calculating Nifty trend: {e}")
 
     analyzed: List[Dict[str, Any]] = []
     errors: List[str] = []
@@ -1635,6 +1649,18 @@ def build_shortlists(symbols: Optional[List[str]] = None, top_n: int = 5) -> Dic
         except Exception as e:
             logger.error(f"Shortlist error for {symbol}: {e}")
             errors.append(f"{symbol}: {str(e)}")
+
+    # Calculate sector relative strength
+    sector_changes = {}
+    for item in analyzed:
+        sec = item.get("sector")
+        chg = item.get("change_pct", 0.0)
+        if sec and sec != "N/A":
+            sector_changes.setdefault(sec, []).append(chg)
+            
+    sector_averages = {sec: safe_round(sum(vals)/len(vals), 2) for sec, vals in sector_changes.items()}
+    sorted_sectors = sorted(sector_averages.items(), key=lambda x: x[1], reverse=True)
+    sector_ranks = {sec: idx + 1 for idx, (sec, _) in enumerate(sorted_sectors)}
 
     intraday_buy = sorted(
         [x for x in analyzed if x["intraday_bias"] == "BUY"],
@@ -1722,9 +1748,54 @@ def build_shortlists(symbols: Optional[List[str]] = None, top_n: int = 5) -> Dic
         candle_top += [x for x in swing_top if x not in candle_top][: top_n - len(candle_top)]
 
     def compile_final_shortlist_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
+        item_data = item_data.copy()
+        
+        # Inject Sector relative strength ranking
+        sec = item_data.get("sector")
+        rank = sector_ranks.get(sec, 99)
+        avg_chg = sector_averages.get(sec, 0.0)
+        
+        # Top 3 Sectors get a +10 points score boost (Relative Strength confirmation)
+        if rank <= 3:
+            item_data["base_score"] = item_data.get("base_score", 0) + 10
+            if item_data.get("intraday_score", 0) > 0:
+                item_data["intraday_score"] = item_data.get("intraday_score", 0) + 5
+            if item_data.get("swing_score", 0) > 0:
+                item_data["swing_score"] = item_data.get("swing_score", 0) + 5
+
+        # Downgrade stock BUY setup scoring if overall Nifty 50 market trend is Bearish
+        if nifty_trend == "Bearish":
+            item_data["base_score"] = item_data.get("base_score", 0) - 15
+
         analysis = ai_analyze(item_data)
+        
+        # Adjust signal calculations for bearish index structure
+        if nifty_trend == "Bearish" and analysis.get("signal") == "BUY":
+            analysis["confidence"] = max(50, int(analysis.get("confidence", 70) - 12))
+            reasons = list(analysis.get("reasons", []))
+            reasons.insert(0, "MARKET WARNING: Nifty 50 index is in a downtrend. Proceed with caution.")
+            analysis["reasons"] = reasons
+
         shortlist_item = build_shortlist_item(item_data)
-        return {**shortlist_item, **analysis}
+        shortlist_item.update({
+            "weekly_trend": item_data.get("weekly_trend", "Neutral"),
+            "weekly_rsi": item_data.get("weekly_rsi", 50.0),
+            "candlestick_patterns": item_data.get("candlestick_patterns", []),
+            "patterns_str": item_data.get("patterns_str", "None"),
+        })
+
+        sector_text = "N/A"
+        if sec and sec != "N/A":
+            sector_text = f"{sec} #{rank} ({'+' if avg_chg >= 0 else ''}{avg_chg:.2f}%)"
+
+        return {
+            **shortlist_item,
+            **analysis,
+            "nifty_trend": nifty_trend,
+            "sector_rank": rank,
+            "sector_avg_change": avg_chg,
+            "sector_performance_text": sector_text
+        }
 
     intraday_top_final = [compile_final_shortlist_item(x) for x in intraday_top[:top_n]]
     swing_top_final = [compile_final_shortlist_item(x) for x in swing_top[:top_n]]
@@ -1737,6 +1808,7 @@ def build_shortlists(symbols: Optional[List[str]] = None, top_n: int = 5) -> Dic
         "generated_at": utc_now_iso(),
         "ai_enabled": bool(client),
         "top_n": top_n,
+        "nifty_trend": nifty_trend,
         "universe_size": len(universe),
         "analyzed_count": len(analyzed),
         "error_count": len(errors),
