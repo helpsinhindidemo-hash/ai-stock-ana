@@ -646,6 +646,123 @@ def calculate_adx(
         return 0.0
 
 
+def check_multi_timeframe(hist: pd.DataFrame) -> Dict[str, Any]:
+    try:
+        # Make sure index is DatetimeIndex for resampling
+        if not isinstance(hist.index, pd.DatetimeIndex):
+            hist = hist.copy()
+            hist.index = pd.to_datetime(hist.index)
+            
+        # Resample to weekly. We group by calendar week ending Friday
+        # Use agg to get correct weekly high, low, open, close, volume
+        weekly = hist.resample('W-FRI').agg({
+            'Open': 'first',
+            'High': 'max',
+            'Low': 'min',
+            'Close': 'last',
+            'Volume': 'sum'
+        }).dropna()
+        
+        if len(weekly) < 20:
+            return {
+                "weekly_trend": "Neutral",
+                "weekly_rsi": 50.0,
+                "weekly_close": 0.0,
+                "weekly_ma20": 0.0
+            }
+            
+        weekly_close = weekly['Close']
+        weekly_ma20 = safe_round(weekly_close.rolling(20).mean().iloc[-1])
+        weekly_ma50 = safe_round(weekly_close.rolling(50).mean().iloc[-1]) if len(weekly_close) >= 50 else weekly_ma20
+        
+        weekly_rsi = calculate_rsi(weekly_close)
+        
+        last_weekly_close = safe_round(weekly_close.iloc[-1])
+        
+        if last_weekly_close > weekly_ma20 > weekly_ma50:
+            weekly_trend = "Bullish"
+        elif last_weekly_close < weekly_ma20 < weekly_ma50:
+            weekly_trend = "Bearish"
+        else:
+            weekly_trend = "Neutral"
+            
+        return {
+            "weekly_trend": weekly_trend,
+            "weekly_rsi": weekly_rsi,
+            "weekly_close": last_weekly_close,
+            "weekly_ma20": weekly_ma20
+        }
+    except Exception as e:
+        logger.warning(f"Error calculating weekly timeframe metrics: {e}")
+        return {
+            "weekly_trend": "Neutral",
+            "weekly_rsi": 50.0,
+            "weekly_close": 0.0,
+            "weekly_ma20": 0.0
+        }
+
+
+def detect_candlestick_patterns(hist: pd.DataFrame) -> List[str]:
+    try:
+        if len(hist) < 3:
+            return []
+            
+        # Last 2 rows
+        c_prev = hist.iloc[-2]
+        c_curr = hist.iloc[-1]
+        
+        o1, h1, l1, c1 = float(c_prev['Open']), float(c_prev['High']), float(c_prev['Low']), float(c_prev['Close'])
+        o2, h2, l2, c2 = float(c_curr['Open']), float(c_curr['High']), float(c_curr['Low']), float(c_curr['Close'])
+        
+        patterns = []
+        
+        # Calculate sizes
+        body1 = abs(c1 - o1)
+        range1 = h1 - l1 if (h1 - l1) > 0 else 0.01
+        
+        body2 = abs(c2 - o2)
+        range2 = h2 - l2 if (h2 - l2) > 0 else 0.01
+        
+        # Candle 2 upper and lower shadows
+        lower_shadow2 = min(o2, c2) - l2
+        upper_shadow2 = h2 - max(o2, c2)
+        
+        # 1. Hammer (Bullish Reversal)
+        # Small body, lower shadow at least 2x body, very small upper shadow
+        if lower_shadow2 >= 2 * body2 and upper_shadow2 <= 0.2 * range2 and range2 > 0.01:
+            patterns.append("Hammer (Bullish)")
+            
+        # 2. Shooting Star (Bearish Reversal)
+        # Small body, upper shadow at least 2x body, very small lower shadow
+        if upper_shadow2 >= 2 * body2 and lower_shadow2 <= 0.2 * range2 and range2 > 0.01:
+            patterns.append("Shooting Star (Bearish)")
+            
+        # 3. Bullish Engulfing
+        # Previous candle is red, current candle is green
+        # Current body completely engulfs previous body
+        if c1 < o1 and c2 > o2:
+            if c2 >= o1 and o2 <= c1 and body2 > body1:
+                patterns.append("Bullish Engulfing")
+                
+        # 4. Bearish Engulfing
+        # Previous candle is green, current candle is red
+        # Current body completely engulfs previous body
+        if c1 > o1 and c2 < o2:
+            if c2 <= o1 and o2 >= c1 and body2 > body1:
+                patterns.append("Bearish Engulfing")
+                
+        # 5. Doji
+        if body2 <= 0.1 * range2:
+            patterns.append("Doji")
+            
+        return patterns
+    except Exception as e:
+        logger.warning(f"Error detecting candlestick patterns: {e}")
+        return []
+
+
+
+
 
 def pick_info_dict(ticker: yf.Ticker) -> Dict[str, Any]:
     info: Dict[str, Any] = {}
@@ -1026,6 +1143,9 @@ def get_stock_data(symbol: str) -> Optional[Dict[str, Any]]:
             _metadata_cache[final_symbol] = metadata
             save_metadata_cache()
 
+        mtf_data = check_multi_timeframe(hist)
+        patterns = detect_candlestick_patterns(hist)
+
         base_metrics: Dict[str, Any] = {
             "debug_version": APP_VERSION,
             "generated_at": utc_now_iso(),
@@ -1052,6 +1172,10 @@ def get_stock_data(symbol: str) -> Optional[Dict[str, Any]]:
             "low52": low52,
             "support": support,
             "resistance": resistance,
+            "weekly_trend": mtf_data.get("weekly_trend", "Neutral"),
+            "weekly_rsi": mtf_data.get("weekly_rsi", 50.0),
+            "candlestick_patterns": patterns,
+            "patterns_str": ", ".join(patterns) if patterns else "None",
         }
 
         scores = compute_trade_scores(base_metrics)
@@ -1412,6 +1536,10 @@ def build_shortlist_item(data: Dict[str, Any]) -> Dict[str, Any]:
         "ma200": data.get("ma200"),
         "support": data.get("support"),
         "resistance": data.get("resistance"),
+        "weekly_trend": data.get("weekly_trend", "Neutral"),
+        "weekly_rsi": data.get("weekly_rsi", 50.0),
+        "candlestick_patterns": data.get("candlestick_patterns", []),
+        "patterns_str": data.get("patterns_str", "None"),
     }
 
 
@@ -1503,7 +1631,7 @@ def build_shortlists(symbols: Optional[List[str]] = None, top_n: int = 5) -> Dic
                 errors.append(f"{symbol}: data unavailable")
                 continue
 
-            analyzed.append(build_shortlist_item(data))
+            analyzed.append(data)
         except Exception as e:
             logger.error(f"Shortlist error for {symbol}: {e}")
             errors.append(f"{symbol}: {str(e)}")
@@ -1552,6 +1680,57 @@ def build_shortlists(symbols: Optional[List[str]] = None, top_n: int = 5) -> Dic
     if len(swing_top) < top_n:
         swing_top += swing_sell_fallback[: top_n - len(swing_top)]
 
+    # Multi-Timeframe Picks (Aligned setups: Bullish Weekly Trend + BUY/HOLD Daily Bias)
+    mtf_buy = sorted(
+        [x for x in analyzed if x.get("weekly_trend") == "Bullish" and x.get("intraday_bias") == "BUY"],
+        key=lambda x: (x["intraday_score"], x["base_score"]),
+        reverse=True,
+    )[:top_n]
+    mtf_hold_fallback = sorted(
+        [x for x in analyzed if x.get("weekly_trend") == "Bullish" and x.get("intraday_bias") == "HOLD"],
+        key=lambda x: (x["intraday_score"], x["base_score"]),
+        reverse=True,
+    )
+    mtf_top = list(mtf_buy)
+    if len(mtf_top) < top_n:
+        mtf_top += mtf_hold_fallback[: top_n - len(mtf_top)]
+    if len(mtf_top) < top_n:
+        mtf_top += [x for x in intraday_top if x not in mtf_top][: top_n - len(mtf_top)]
+
+    # Candlestick Picks (Stocks with daily patterns detected)
+    candle_buy = sorted(
+        [x for x in analyzed if x.get("candlestick_patterns") and x.get("intraday_bias") == "BUY"],
+        key=lambda x: (x["base_score"]),
+        reverse=True,
+    )[:top_n]
+    candle_hold_fallback = sorted(
+        [x for x in analyzed if x.get("candlestick_patterns") and x.get("intraday_bias") == "HOLD"],
+        key=lambda x: (x["base_score"]),
+        reverse=True,
+    )
+    candle_any_fallback = sorted(
+        [x for x in analyzed if x.get("candlestick_patterns")],
+        key=lambda x: (x["base_score"]),
+        reverse=True,
+    )
+    candle_top = list(candle_buy)
+    if len(candle_top) < top_n:
+        candle_top += [x for x in candle_hold_fallback if x not in candle_top][: top_n - len(candle_top)]
+    if len(candle_top) < top_n:
+        candle_top += [x for x in candle_any_fallback if x not in candle_top][: top_n - len(candle_top)]
+    if len(candle_top) < top_n:
+        candle_top += [x for x in swing_top if x not in candle_top][: top_n - len(candle_top)]
+
+    def compile_final_shortlist_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
+        analysis = ai_analyze(item_data)
+        shortlist_item = build_shortlist_item(item_data)
+        return {**shortlist_item, **analysis}
+
+    intraday_top_final = [compile_final_shortlist_item(x) for x in intraday_top[:top_n]]
+    swing_top_final = [compile_final_shortlist_item(x) for x in swing_top[:top_n]]
+    mtf_top_final = [compile_final_shortlist_item(x) for x in mtf_top[:top_n]]
+    candle_top_final = [compile_final_shortlist_item(x) for x in candle_top[:top_n]]
+
     return {
         "success": True,
         "version": APP_VERSION,
@@ -1561,8 +1740,10 @@ def build_shortlists(symbols: Optional[List[str]] = None, top_n: int = 5) -> Dic
         "universe_size": len(universe),
         "analyzed_count": len(analyzed),
         "error_count": len(errors),
-        "intraday_top": intraday_top[:top_n],
-        "swing_top": swing_top[:top_n],
+        "intraday_top": intraday_top_final,
+        "swing_top": swing_top_final,
+        "multi_timeframe_top": mtf_top_final,
+        "candlestick_top": candle_top_final,
         "errors": errors[:20],
     }
 

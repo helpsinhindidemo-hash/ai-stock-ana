@@ -216,6 +216,8 @@ def get_shortlist(top_n: int = Query(default=5, ge=1, le=20)) -> Dict[str, Any]:
 
         intraday_top = result.get("intraday_top", [])
         swing_top = result.get("swing_top", [])
+        multi_timeframe_top = result.get("multi_timeframe_top", [])
+        candlestick_top = result.get("candlestick_top", [])
         errors = result.get("errors", [])
 
         return {
@@ -229,6 +231,8 @@ def get_shortlist(top_n: int = Query(default=5, ge=1, le=20)) -> Dict[str, Any]:
             "version": result.get("version"),
             "intraday_top": intraday_top,
             "swing_top": swing_top,
+            "multi_timeframe_top": multi_timeframe_top,
+            "candlestick_top": candlestick_top,
             "errors": errors,
         }
     except Exception as e:
@@ -242,6 +246,8 @@ def get_shortlist(top_n: int = Query(default=5, ge=1, le=20)) -> Dict[str, Any]:
             "error_count": 1,
             "intraday_top": [],
             "swing_top": [],
+            "multi_timeframe_top": [],
+            "candlestick_top": [],
             "errors": [str(e)],
             "error": "Shortlist build nahi ho payi",
         }
