@@ -21,93 +21,7 @@ from stock_analyzer import (
 APP_VERSION = "api_server_v9_news_picks"
 APP_START_TS = time.time()
 
-NIFTY_100_STOCKS: List[Dict[str, str]] = [
-    {"name": "ABB India", "symbol": "ABB"},
-    {"name": "Adani Enterprises", "symbol": "ADANIENT"},
-    {"name": "Adani Green Energy", "symbol": "ADANIGREEN"},
-    {"name": "Adani Ports & SEZ", "symbol": "ADANIPORTS"},
-    {"name": "Ambuja Cements", "symbol": "AMBUJACEM"},
-    {"name": "Apollo Hospitals", "symbol": "APOLLOHOSP"},
-    {"name": "Asian Paints", "symbol": "ASIANPAINT"},
-    {"name": "Avenue Supermarts", "symbol": "DMART"},
-    {"name": "Axis Bank", "symbol": "AXISBANK"},
-    {"name": "Bajaj Auto", "symbol": "BAJAJ-AUTO"},
-    {"name": "Bajaj Finance", "symbol": "BAJFINANCE"},
-    {"name": "Bajaj Finserv", "symbol": "BAJAJFINSV"},
-    {"name": "Bank of Baroda", "symbol": "BANKBARODA"},
-    {"name": "Bharat Electronics", "symbol": "BEL"},
-    {"name": "Bharat Petroleum", "symbol": "BPCL"},
-    {"name": "Bharti Airtel", "symbol": "BHARTIARTL"},
-    {"name": "Britannia Industries", "symbol": "BRITANNIA"},
-    {"name": "Canara Bank", "symbol": "CANBK"},
-    {"name": "Cipla", "symbol": "CIPLA"},
-    {"name": "Coal India", "symbol": "COALINDIA"},
-    {"name": "Cummins India", "symbol": "CUMMINSIND"},
-    {"name": "Dabur India", "symbol": "DABUR"},
-    {"name": "Divis Laboratories", "symbol": "DIVISLAB"},
-    {"name": "DLF", "symbol": "DLF"},
-    {"name": "Dr Reddys Laboratories", "symbol": "DRREDDY"},
-    {"name": "Eicher Motors", "symbol": "EICHERMOT"},
-    {"name": "Eternal", "symbol": "ETERNAL"},
-    {"name": "GAIL India", "symbol": "GAIL"},
-    {"name": "Godrej Consumer Products", "symbol": "GODREJCP"},
-    {"name": "Grasim Industries", "symbol": "GRASIM"},
-    {"name": "HAL", "symbol": "HAL"},
-    {"name": "HCLTech", "symbol": "HCLTECH"},
-    {"name": "HDFC AMC", "symbol": "HDFCAMC"},
-    {"name": "HDFC Bank", "symbol": "HDFCBANK"},
-    {"name": "HDFC Life", "symbol": "HDFCLIFE"},
-    {"name": "Hero MotoCorp", "symbol": "HEROMOTOCO"},
-    {"name": "Hindalco Industries", "symbol": "HINDALCO"},
-    {"name": "Hindustan Unilever", "symbol": "HINDUNILVR"},
-    {"name": "ICICI Bank", "symbol": "ICICIBANK"},
-    {"name": "Indian Hotels", "symbol": "INDHOTEL"},
-    {"name": "Indian Oil Corporation", "symbol": "IOC"},
-    {"name": "IndiGo", "symbol": "INDIGO"},
-    {"name": "IndusInd Bank", "symbol": "INDUSINDBK"},
-    {"name": "Infosys", "symbol": "INFY"},
-    {"name": "ITC", "symbol": "ITC"},
-    {"name": "Jio Financial Services", "symbol": "JIOFIN"},
-    {"name": "JSW Steel", "symbol": "JSWSTEEL"},
-    {"name": "Kotak Mahindra Bank", "symbol": "KOTAKBANK"},
-    {"name": "Larsen & Toubro", "symbol": "LT"},
-    {"name": "Mahindra & Mahindra", "symbol": "M&M"},
-    {"name": "Marico", "symbol": "MARICO"},
-    {"name": "Maruti Suzuki", "symbol": "MARUTI"},
-    {"name": "Max Healthcare", "symbol": "MAXHEALTH"},
-    {"name": "Muthoot Finance", "symbol": "MUTHOOTFIN"},
-    {"name": "Nestle India", "symbol": "NESTLEIND"},
-    {"name": "NTPC", "symbol": "NTPC"},
-    {"name": "Oil & Natural Gas Corporation", "symbol": "ONGC"},
-    {"name": "Pidilite Industries", "symbol": "PIDILITIND"},
-    {"name": "PNB", "symbol": "PNB"},
-    {"name": "Power Finance Corporation", "symbol": "PFC"},
-    {"name": "Power Grid", "symbol": "POWERGRID"},
-    {"name": "REC", "symbol": "RECLTD"},
-    {"name": "Reliance Industries", "symbol": "RELIANCE"},
-    {"name": "SBI Life Insurance", "symbol": "SBILIFE"},
-    {"name": "Shriram Finance", "symbol": "SHRIRAMFIN"},
-    {"name": "Siemens", "symbol": "SIEMENS"},
-    {"name": "State Bank of India", "symbol": "SBIN"},
-    {"name": "Sun Pharma", "symbol": "SUNPHARMA"},
-    {"name": "Tata Consultancy Services", "symbol": "TCS"},
-    {"name": "Tata Consumer Products", "symbol": "TATACONSUM"},
-    {"name": "Tata Power", "symbol": "TATAPOWER"},
-    {"name": "Tata Steel", "symbol": "TATASTEEL"},
-    {"name": "Tech Mahindra", "symbol": "TECHM"},
-    {"name": "Titan Company", "symbol": "TITAN"},
-    {"name": "Torrent Pharmaceuticals", "symbol": "TORNTPHARM"},
-    {"name": "Trent", "symbol": "TRENT"},
-    {"name": "TVS Motor", "symbol": "TVSMOTOR"},
-    {"name": "UltraTech Cement", "symbol": "ULTRACEMCO"},
-    {"name": "Union Bank of India", "symbol": "UNIONBANK"},
-    {"name": "United Spirits", "symbol": "UNITDSPR"},
-    {"name": "Varun Beverages", "symbol": "VBL"},
-    {"name": "Vedanta", "symbol": "VEDL"},
-    {"name": "Wipro", "symbol": "WIPRO"},
-    {"name": "Zydus Lifesciences", "symbol": "ZYDUSLIFE"},
-]
-
+from nse_nifty200 import NIFTY_200_STOCKS
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*")
 ALLOW_CREDENTIALS = os.getenv("ALLOW_CREDENTIALS", "false").lower() == "true"
 
@@ -168,8 +82,8 @@ def make_base_response(success: bool = True) -> Dict[str, Any]:
     }
 
 
-CLEANED_NIFTY_100_STOCKS = clean_stock_list(NIFTY_100_STOCKS)
-CLEANED_NIFTY_100_SYMBOLS = build_universe_symbols(CLEANED_NIFTY_100_STOCKS)
+CLEANED_NIFTY_200_STOCKS = clean_stock_list(NIFTY_200_STOCKS)
+CLEANED_NIFTY_200_SYMBOLS = build_universe_symbols(CLEANED_NIFTY_200_STOCKS)
 CORS_ORIGINS = get_allowed_origins()
 CORS_ALLOW_CREDENTIALS = get_cors_allow_credentials(CORS_ORIGINS)
 
@@ -179,8 +93,8 @@ async def lifespan(app: FastAPI):
     print("=" * 60, flush=True)
     print("Backend started and ready.", flush=True)
     print(f"APP_VERSION: {APP_VERSION}", flush=True)
-    print(f"Raw stocks loaded: {len(NIFTY_100_STOCKS)}", flush=True)
-    print(f"Cleaned stocks loaded: {len(CLEANED_NIFTY_100_STOCKS)}", flush=True)
+    print(f"Raw stocks loaded: {len(NIFTY_200_STOCKS)}", flush=True)
+    print(f"Cleaned stocks loaded: {len(CLEANED_NIFTY_200_STOCKS)}", flush=True)
     print(f"ALLOWED_ORIGINS: {CORS_ORIGINS}", flush=True)
     print(f"ALLOW_CREDENTIALS: {CORS_ALLOW_CREDENTIALS}", flush=True)
     print(f"PORT: {os.getenv('PORT', 'not-set')}", flush=True)
@@ -188,7 +102,7 @@ async def lifespan(app: FastAPI):
     # Prefetch prices for Nifty 100 on startup to warm up cache
     try:
         print("Prefetching price cache for the Nifty 100 universe...", flush=True)
-        prefetch_all_stocks_data(CLEANED_NIFTY_100_SYMBOLS)
+        prefetch_all_stocks_data(CLEANED_NIFTY_200_SYMBOLS)
         print("Startup prefetch completed successfully.", flush=True)
     except Exception as e:
         print(f"Startup prefetch failed: {e}", flush=True)
@@ -244,8 +158,8 @@ def meta() -> Dict[str, Any]:
         "server_version": APP_VERSION,
         "analyzer_version": analyzer_meta.get("version"),
         "ai_enabled": analyzer_meta.get("ai_enabled", False),
-        "stocks_count": len(CLEANED_NIFTY_100_STOCKS),
-        "shortlist_universe_count": len(CLEANED_NIFTY_100_SYMBOLS),
+        "stocks_count": len(CLEANED_NIFTY_200_STOCKS),
+        "shortlist_universe_count": len(CLEANED_NIFTY_200_SYMBOLS),
         "allowed_origins": CORS_ORIGINS,
         "allow_credentials": CORS_ALLOW_CREDENTIALS,
         "features": {
@@ -270,7 +184,7 @@ def health() -> Dict[str, Any]:
         "server_version": APP_VERSION,
         "analyzer_version": analyzer_health.get("version"),
         "ai_enabled": analyzer_health.get("ai_enabled", False),
-        "stocks_count": len(CLEANED_NIFTY_100_STOCKS),
+        "stocks_count": len(CLEANED_NIFTY_200_STOCKS),
         "allowed_origins": CORS_ORIGINS,
     }
 
@@ -280,8 +194,8 @@ def get_stocks() -> Dict[str, Any]:
     return {
         **make_base_response(True),
         "index": "NIFTY 100",
-        "count": len(CLEANED_NIFTY_100_STOCKS),
-        "stocks": CLEANED_NIFTY_100_STOCKS,
+        "count": len(CLEANED_NIFTY_200_STOCKS),
+        "stocks": CLEANED_NIFTY_200_STOCKS,
     }
 
 
@@ -293,7 +207,7 @@ def get_shortlist(top_n: int = Query(default=5, ge=1, le=20)) -> Dict[str, Any]:
 
     try:
         result = build_shortlists(
-            symbols=CLEANED_NIFTY_100_SYMBOLS,
+            symbols=CLEANED_NIFTY_200_SYMBOLS,
             top_n=top_n,
         )
 
@@ -308,7 +222,7 @@ def get_shortlist(top_n: int = Query(default=5, ge=1, le=20)) -> Dict[str, Any]:
             **make_base_response(True),
             "requested_top_n": top_n,
             "top_n": result.get("top_n", top_n),
-            "universe_size": result.get("universe_size", len(CLEANED_NIFTY_100_SYMBOLS)),
+            "universe_size": result.get("universe_size", len(CLEANED_NIFTY_200_SYMBOLS)),
             "analyzed_count": result.get("analyzed_count", 0),
             "error_count": result.get("error_count", len(errors)),
             "ai_enabled": result.get("ai_enabled", False),
@@ -323,7 +237,7 @@ def get_shortlist(top_n: int = Query(default=5, ge=1, le=20)) -> Dict[str, Any]:
             **make_base_response(False),
             "requested_top_n": top_n,
             "top_n": top_n,
-            "universe_size": len(CLEANED_NIFTY_100_SYMBOLS),
+            "universe_size": len(CLEANED_NIFTY_200_SYMBOLS),
             "analyzed_count": 0,
             "error_count": 1,
             "intraday_top": [],
@@ -341,7 +255,7 @@ def get_news_picks(top_n: int = Query(default=5, ge=1, le=20)) -> Dict[str, Any]
 
     try:
         # Note: Depending on your 'stock_analyzer.py' implementation, you might need to pass `top_n`
-        result = build_news_picks(symbols=CLEANED_NIFTY_100_SYMBOLS, top_n=top_n)
+        result = build_news_picks(symbols=CLEANED_NIFTY_200_SYMBOLS, top_n=top_n)
 
         if not isinstance(result, dict):
             raise ValueError("build_news_picks() ne invalid format return kiya.")
@@ -356,7 +270,7 @@ def get_news_picks(top_n: int = Query(default=5, ge=1, le=20)) -> Dict[str, Any]
             **make_base_response(True),
             "requested_top_n": top_n,
             "top_n": result.get("top_n", top_n),
-            "universe_size": result.get("universe_size", len(CLEANED_NIFTY_100_SYMBOLS)),
+            "universe_size": result.get("universe_size", len(CLEANED_NIFTY_200_SYMBOLS)),
             "analyzed_count": result.get("analyzed_count", len(items)),
             "error_count": result.get("error_count", len(errors)),
             "ai_enabled": result.get("ai_enabled", False),
@@ -370,7 +284,7 @@ def get_news_picks(top_n: int = Query(default=5, ge=1, le=20)) -> Dict[str, Any]
             **make_base_response(False),
             "requested_top_n": top_n,
             "top_n": top_n,
-            "universe_size": len(CLEANED_NIFTY_100_SYMBOLS),
+            "universe_size": len(CLEANED_NIFTY_200_SYMBOLS),
             "analyzed_count": 0,
             "error_count": 1,
             "items": [],
