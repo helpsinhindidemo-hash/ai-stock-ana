@@ -193,7 +193,7 @@ def health() -> Dict[str, Any]:
 def get_stocks() -> Dict[str, Any]:
     return {
         **make_base_response(True),
-        "index": "NIFTY 100",
+        "index": "NIFTY 200",
         "count": len(CLEANED_NIFTY_200_STOCKS),
         "stocks": CLEANED_NIFTY_200_STOCKS,
     }
